@@ -493,7 +493,7 @@ function updateDashboard() {
   const saved = Math.max(0, income - expenses);
   const totalAssets = allAccounts.filter(a => a.type !== 'credit' && a.type !== 'loan').reduce((s,a) => s + (a.balances.current || 0), 0);
   const totalDebt = allAccounts.filter(a => a.type === 'credit' || a.type === 'loan').reduce((s,a) => s + (a.balances.current || 0), 0);
-  const goldVal = goldSpotOz * (parseFloat(document.getElementById('gold-qty')?.value || 0));
+  const goldVal = calcMetals();
   const netWorth = totalAssets - totalDebt + goldVal;
   document.getElementById('net-worth').textContent = '$' + Math.round(netWorth).toLocaleString();
   document.getElementById('net-worth-sub').textContent = totalDebt > 0 ? `-$${Math.round(totalDebt).toLocaleString()} in liabilities` : 'Looking good!';
@@ -556,12 +556,6 @@ function calcMetals() {
   return total;
 }
 
-function calcGold() {
-  const qty = parseFloat(document.getElementById('gold-qty').value) || 0;
-  const unit = document.getElementById('gold-unit').value;
-  const oz = unit === 'g' ? qty / 31.1035 : qty;
-  document.getElementById('gold-value').textContent = '$' + (oz * goldSpotOz).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
-}
 
 function saveAsset() {
   const name = document.getElementById('asset-name').value;
