@@ -268,6 +268,36 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   <button class="add-btn" onclick="openModal('asset')">+ Add asset</button>
 </div>
 
+<div id="page-trends" class="page">
+  <div class="section-title">Net worth over time</div>
+  <div class="spending-card">
+    <div class="spending-header">
+      <span class="spending-title">Net Worth History</span>
+      <span class="spending-period" id="trends-range">Loading...</span>
+    </div>
+    <canvas id="networth-chart" style="width:100%;height:200px"></canvas>
+    <div style="display:flex;justify-content:space-around;margin-top:16px">
+      <div style="text-align:center">
+        <div style="font-size:11px;color:#9ca3af">Current</div>
+        <div style="font-size:18px;font-weight:700;color:#fff" id="chart-current">—</div>
+      </div>
+      <div style="text-align:center">
+        <div style="font-size:11px;color:#9ca3af">Peak</div>
+        <div style="font-size:18px;font-weight:700;color:#14b8a6" id="chart-peak">—</div>
+      </div>
+      <div style="text-align:center">
+        <div style="font-size:11px;color:#9ca3af">Change</div>
+        <div style="font-size:18px;font-weight:700" id="chart-change">—</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-title">Assets vs Liabilities</div>
+  <div class="spending-card">
+    <canvas id="assets-chart" style="width:100%;height:180px"></canvas>
+  </div>
+</div>
+
 <nav class="nav">
   <button class="nav-btn active" onclick="showPage('home',this)">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
@@ -284,6 +314,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   <button class="nav-btn" onclick="showPage('assets',this)">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
     Assets
+  </button>
+  <button class="nav-btn" onclick="showPage('trends',this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+    Trends
   </button>
 </nav>
 
@@ -336,6 +370,7 @@ function showPage(name, btn) {
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('page-' + name).classList.add('active');
   btn.classList.add('active');
+  if (name === 'trends') loadNetWorthHistory();
 }
 
 function openModal(type) { document.getElementById(type + '-modal').classList.add('open'); }
@@ -507,6 +542,14 @@ function updateDashboard() {
   document.getElementById('budget-bar').style.width = pct + '%';
   document.getElementById('budget-bar').style.background = pct > 90 ? 'linear-gradient(90deg,#f43f5e,#f97316)' : 'linear-gradient(90deg,#a855f7,#14b8a6)';
   document.getElementById('budget-remaining').textContent = monthlyBudget ? `$${Math.round(Math.max(0, budget - expenses)).toLocaleString()} remaining` : 'Set a budget to track progress';
+  // Save net worth snapshot
+  if (netWorth !== 0) {
+    fetch(`${API}/api/networth`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ netWorth: Math.round(netWorth), assets: Math.round(totalAssets), liabilities: Math.round(totalDebt) })
+    }).catch(() => {});
+  }
 }
 
 async function fetchMetalPrices() {
@@ -572,6 +615,116 @@ function saveAsset() {
 }
 
 setTimeout(loadAll, 500);
+
+async function loadNetWorthHistory() {
+  try {
+    const res = await fetch(`${API}/api/networth`);
+    const data = await res.json();
+    const history = data.history || [];
+    if (history.length < 2) {
+      document.getElementById('trends-range').textContent = 'Need more data';
+      return;
+    }
+    drawNetWorthChart(history);
+  } catch (e) {
+    console.error('Failed to load history', e);
+  }
+}
+
+function drawNetWorthChart(history) {
+  const canvas = document.getElementById('networth-chart');
+  const ctx = canvas.getContext('2d');
+  canvas.width = canvas.offsetWidth * window.devicePixelRatio;
+  canvas.height = 200 * window.devicePixelRatio;
+  ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+  const w = canvas.offsetWidth;
+  const h = 200;
+  ctx.clearRect(0, 0, w, h);
+
+  const values = history.map(h => h.netWorth);
+  const min = Math.min(...values) * 0.95;
+  const max = Math.max(...values) * 1.05;
+  const range = max - min || 1;
+
+  const pad = { top: 20, right: 20, bottom: 30, left: 60 };
+  const chartW = w - pad.left - pad.right;
+  const chartH = h - pad.top - pad.bottom;
+
+  // Grid lines
+  ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 4; i++) {
+    const y = pad.top + (chartH / 4) * i;
+    ctx.beginPath();
+    ctx.moveTo(pad.left, y);
+    ctx.lineTo(w - pad.right, y);
+    ctx.stroke();
+    const val = max - (range / 4) * i;
+    ctx.fillStyle = '#6b7280';
+    ctx.font = '10px -apple-system,sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText('$' + Math.round(val / 1000) + 'k', pad.left - 6, y + 4);
+  }
+
+  // Gradient fill
+  const gradient = ctx.createLinearGradient(0, pad.top, 0, h - pad.bottom);
+  gradient.addColorStop(0, 'rgba(168,85,247,0.4)');
+  gradient.addColorStop(1, 'rgba(168,85,247,0)');
+
+  const points = history.map((entry, i) => ({
+    x: pad.left + (i / (history.length - 1)) * chartW,
+    y: pad.top + chartH - ((entry.netWorth - min) / range) * chartH
+  }));
+
+  // Fill
+  ctx.beginPath();
+  ctx.moveTo(points[0].x, h - pad.bottom);
+  points.forEach(p => ctx.lineTo(p.x, p.y));
+  ctx.lineTo(points[points.length - 1].x, h - pad.bottom);
+  ctx.closePath();
+  ctx.fillStyle = gradient;
+  ctx.fill();
+
+  // Line
+  ctx.beginPath();
+  ctx.strokeStyle = '#a855f7';
+  ctx.lineWidth = 2.5;
+  ctx.lineJoin = 'round';
+  points.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
+  ctx.stroke();
+
+  // Dots
+  points.forEach(p => {
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+    ctx.fillStyle = '#a855f7';
+    ctx.fill();
+    ctx.strokeStyle = '#0d0d1a';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  });
+
+  // Date labels
+  ctx.fillStyle = '#6b7280';
+  ctx.font = '9px -apple-system,sans-serif';
+  ctx.textAlign = 'center';
+  [0, Math.floor(history.length / 2), history.length - 1].forEach(i => {
+    const d = new Date(history[i].date);
+    const label = d.toLocaleString('default', { month: 'short', day: 'numeric' });
+    ctx.fillText(label, points[i].x, h - pad.bottom + 14);
+  });
+
+  // Stats
+  const current = values[values.length - 1];
+  const first = values[0];
+  const peak = Math.max(...values);
+  const change = current - first;
+  document.getElementById('chart-current').textContent = '$' + Math.round(current).toLocaleString();
+  document.getElementById('chart-peak').textContent = '$' + Math.round(peak).toLocaleString();
+  document.getElementById('chart-change').textContent = (change >= 0 ? '+' : '') + '$' + Math.round(change).toLocaleString();
+  document.getElementById('chart-change').style.color = change >= 0 ? '#14b8a6' : '#f43f5e';
+  document.getElementById('trends-range').textContent = history.length + ' days tracked';
+}
 </script>
 </body>
 </html>

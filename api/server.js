@@ -112,5 +112,38 @@ app.get('/api/reset-tokens', async (req, res) => {
   res.json({ success: true, message: 'Tokens cleared' });
 });
 
+app.post('/api/networth', async (req, res) => {
+  try {
+    const { netWorth, assets, liabilities } = req.body;
+    const history = await redis.get('clarity:networth_history') || [];
+    const entry = {
+      date: new Date().toISOString().split('T')[0],
+      netWorth,
+      assets,
+      liabilities
+    };
+    // Only add one entry per day
+    const today = entry.date;
+    const filtered = history.filter(h => h.date !== today);
+    filtered.push(entry);
+    // Keep last 12 months
+    const trimmed = filtered.slice(-365);
+    await redis.set('clarity:networth_history', trimmed);
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to save net worth' });
+  }
+});
+
+app.get('/api/networth', async (req, res) => {
+  try {
+    const history = await redis.get('clarity:networth_history') || [];
+    res.json({ history });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to get net worth history' });
+  }
+});
+
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => console.log(`Clarity server running on port ${PORT}`));
