@@ -298,6 +298,19 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   </div>
 </div>
 
+<div id="page-bills" class="page">
+  <div class="accounts-hero">
+    <div class="accounts-hero-label">Total monthly bills</div>
+    <div class="accounts-hero-amount" id="bills-total">$0</div>
+    <div class="accounts-hero-sub" id="bills-due">No bills added yet</div>
+  </div>
+  <div class="section-title">Upcoming bills</div>
+  <div id="bills-upcoming"><div class="empty-state"><div class="empty-icon">📅</div>No upcoming bills</div></div>
+  <div class="section-title">All bills</div>
+  <div id="bills-list"><div class="empty-state"><div class="empty-icon">📋</div>No bills added yet</div></div>
+  <button class="add-btn" onclick="openModal('bill')">+ Add bill</button>
+</div>
+
 <div id="page-budgets" class="page">
   <div class="section-title">Monthly budgets</div>
   <div id="budget-list"><div class="empty-state"><div class="empty-icon">🎯</div>Loading budgets...</div></div>
@@ -313,9 +326,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
     Transactions
   </button>
-  <button class="nav-btn" onclick="showPage('accounts',this)">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
-    Accounts
+  <button class="nav-btn" onclick="showPage('bills',this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+    Bills
   </button>
   <button class="nav-btn" onclick="showPage('budgets',this)">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
@@ -377,7 +390,8 @@ function showPage(name, btn) {
   document.getElementById('page-' + name).classList.add('active');
   btn.classList.add('active');
   if (name === 'trends') loadNetWorthHistory();
-  if (name === 'budgets') { loadBudgets(); }
+  if (name === 'budgets') loadBudgets();
+  if (name === 'bills') loadBills();
 }
 
 function openModal(type) { document.getElementById(type + '-modal').classList.add('open'); }
@@ -406,7 +420,7 @@ async function connectBank() {
 }
 
 async function loadAll() {
-  await Promise.all([loadAccounts(), loadTransactions(), fetchMetalPrices(), loadBudgets()]);
+  await Promise.all([loadAccounts(), loadTransactions(), fetchMetalPrices(), loadBudgets(), loadBills()]);
   updateDashboard();
 }
 
@@ -625,6 +639,116 @@ setTimeout(loadAll, 500);
 
 let budgets = {};
 
+let bills = [];
+
+async function loadBills() {
+  try {
+    const res = await fetch(`${API}/api/bills`);
+    const data = await res.json();
+    bills = data.bills || [];
+    renderBills();
+  } catch { bills = []; }
+}
+
+async function saveBill() {
+  const name = document.getElementById('bill-name').value;
+  const amount = parseFloat(document.getElementById('bill-amount').value);
+  const due = parseInt(document.getElementById('bill-due').value);
+  const category = document.getElementById('bill-category').value;
+  if (!name || !amount || !due) return;
+  bills.push({ id: Date.now(), name, amount, due, category, paid: false });
+  await fetch(`${API}/api/bills`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ bills })
+  });
+  closeModal('bill-modal');
+  document.getElementById('bill-name').value = '';
+  document.getElementById('bill-amount').value = '';
+  document.getElementById('bill-due').value = '';
+  renderBills();
+}
+
+async function toggleBillPaid(id) {
+  bills = bills.map(b => b.id === id ? { ...b, paid: !b.paid } : b);
+  await fetch(`${API}/api/bills`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ bills })
+  });
+  renderBills();
+}
+
+async function deleteBill(id) {
+  bills = bills.filter(b => b.id !== id);
+  await fetch(`${API}/api/bills`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ bills })
+  });
+  renderBills();
+}
+
+function renderBills() {
+  const list = document.getElementById('bills-list');
+  const upcoming = document.getElementById('bills-upcoming');
+  const totalEl = document.getElementById('bills-total');
+  const dueEl = document.getElementById('bills-due');
+  if (!list) return;
+
+  const total = bills.reduce((s, b) => s + b.amount, 0);
+  totalEl.textContent = '$' + total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  const today = new Date().getDate();
+  const upcomingBills = bills.filter(b => !b.paid && b.due >= today && b.due <= today + 7);
+  dueEl.textContent = upcomingBills.length > 0 ? `${upcomingBills.length} bill${upcomingBills.length > 1 ? 's' : ''} due in next 7 days` : `${bills.length} bill${bills.length !== 1 ? 's' : ''} tracked`;
+
+  const BILL_ICONS = { Housing: '🏠', Utilities: '⚡', Streaming: '📺', Insurance: '🛡️', Subscriptions: '🔄', Loans: '🏦', Other: '📋' };
+
+  if (!bills.length) {
+    list.innerHTML = '<div class="empty-state"><div class="empty-icon">📋</div>No bills added yet</div>';
+    upcoming.innerHTML = '<div class="empty-state"><div class="empty-icon">📅</div>No upcoming bills</div>';
+    return;
+  }
+
+  if (!upcomingBills.length) {
+    upcoming.innerHTML = '<div class="empty-state"><div class="empty-icon">✅</div>No bills due in next 7 days</div>';
+  } else {
+    upcoming.innerHTML = '<div class="card">' + upcomingBills.map(b => `
+      <div class="card-row">
+        <div class="tx-icon" style="background:rgba(244,63,94,0.15)">${BILL_ICONS[b.category] || '📋'}</div>
+        <div class="account-info">
+          <div class="account-name">${b.name}</div>
+          <div class="account-sub">Due on the ${b.due}${b.due === 1 ? 'st' : b.due === 2 ? 'nd' : b.due === 3 ? 'rd' : 'th'}</div>
+        </div>
+        <div style="text-align:right">
+          <div class="account-amount">$${b.amount.toFixed(2)}</div>
+          <div style="font-size:11px;color:#f43f5e">Due soon</div>
+        </div>
+      </div>`).join('') + '</div>';
+  }
+
+  const sorted = [...bills].sort((a, b) => a.due - b.due);
+  list.innerHTML = '<div class="card">' + sorted.map(b => `
+    <div class="card-row">
+      <div class="tx-icon" style="background:${b.paid ? 'rgba(20,184,166,0.15)' : 'rgba(168,85,247,0.15)'}">${BILL_ICONS[b.category] || '📋'}</div>
+      <div class="account-info">
+        <div class="account-name" style="${b.paid ? 'text-decoration:line-through;color:#6b7280' : ''}">${b.name}</div>
+        <div class="account-sub">${b.category} · Due ${b.due}${b.due === 1 ? 'st' : b.due === 2 ? 'nd' : b.due === 3 ? 'rd' : 'th'}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="text-align:right">
+          <div class="account-amount">$${b.amount.toFixed(2)}</div>
+          <div style="font-size:11px;color:${b.paid ? '#14b8a6' : '#9ca3af'}">${b.paid ? 'Paid ✓' : 'Unpaid'}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px">
+          <button onclick="toggleBillPaid(${b.id})" style="background:${b.paid ? 'rgba(20,184,166,0.2)' : 'rgba(168,85,247,0.2)'};border:none;border-radius:8px;padding:4px 8px;font-size:11px;color:${b.paid ? '#14b8a6' : '#a855f7'};cursor:pointer">${b.paid ? 'Undo' : 'Pay'}</button>
+          <button onclick="deleteBill(${b.id})" style="background:rgba(244,63,94,0.2);border:none;border-radius:8px;padding:4px 8px;font-size:11px;color:#f43f5e;cursor:pointer">Del</button>
+        </div>
+      </div>
+    </div>`).join('') + '</div>';
+}
+
 async function loadBudgets() {
   try {
     const res = await fetch(`${API}/api/budgets`);
@@ -829,6 +953,40 @@ function drawNetWorthChart(history) {
     <div class="btn-row">
       <button class="btn-cancel" onclick="closeModal('budget-modal')">Cancel</button>
       <button class="btn-save" onclick="saveBudget()">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="bill-modal">
+  <div class="modal">
+    <div class="modal-title">Add bill</div>
+    <div class="form-group">
+      <label class="form-label">Bill name</label>
+      <input type="text" id="bill-name" placeholder="e.g. Netflix, Rent, Car payment">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Amount</label>
+      <input type="number" id="bill-amount" placeholder="$0.00" min="0" step="0.01">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Due day of month</label>
+      <input type="number" id="bill-due" placeholder="e.g. 15" min="1" max="31">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Category</label>
+      <select id="bill-category">
+        <option>Housing</option>
+        <option>Utilities</option>
+        <option>Streaming</option>
+        <option>Insurance</option>
+        <option>Subscriptions</option>
+        <option>Loans</option>
+        <option>Other</option>
+      </select>
+    </div>
+    <div class="btn-row">
+      <button class="btn-cancel" onclick="closeModal('bill-modal')">Cancel</button>
+      <button class="btn-save" onclick="saveBill()">Save</button>
     </div>
   </div>
 </div>
