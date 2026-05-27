@@ -511,13 +511,20 @@ function updateDashboard() {
 
 async function fetchMetalPrices() {
   try {
-    const r = await fetch('https://api.metals.dev/v1/latest?api_key=demo&currency=USD&unit=troy_oz');
-    const d = await r.json();
-    metalPrices.gold = d.metals?.XAU || 3300;
-    metalPrices.silver = d.metals?.XAG || 32;
-    metalPrices.platinum = d.metals?.XPT || 1000;
-    metalPrices.palladium = d.metals?.XPD || 1050;
-  } catch {
+    const headers = { 'x-access-token': '388546db7bb51d489681d0132fb6ed44bfbe1a707cfcf5d6ce53683baf0c9540', 'Content-Type': 'application/json' };
+    const [goldRes, silverRes, platRes, palRes] = await Promise.all([
+      fetch('https://www.goldapi.io/api/XAU/USD', { headers }),
+      fetch('https://www.goldapi.io/api/XAG/USD', { headers }),
+      fetch('https://www.goldapi.io/api/XPT/USD', { headers }),
+      fetch('https://www.goldapi.io/api/XPD/USD', { headers })
+    ]);
+    const [gold, silver, plat, pal] = await Promise.all([goldRes.json(), silverRes.json(), platRes.json(), palRes.json()]);
+    metalPrices.gold = gold.price || 3300;
+    metalPrices.silver = silver.price || 32;
+    metalPrices.platinum = plat.price || 1000;
+    metalPrices.palladium = pal.price || 1050;
+  } catch (e) {
+    console.error('Metals API error:', e);
     metalPrices.gold = 3300;
     metalPrices.silver = 32;
     metalPrices.platinum = 1000;
