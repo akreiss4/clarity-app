@@ -192,25 +192,78 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 </div>
 
 <div id="page-assets" class="page">
-  <div class="section-title">Gold tracker</div>
+  <div class="section-title">Precious metals</div>
+  
   <div class="gold-bar">
     <div class="gold-price-row">
       <div>
-        <div style="font-size:12px;color:#9ca3af;margin-bottom:4px">Spot price / oz</div>
-        <div style="font-size:26px;font-weight:700;color:#fff" id="gold-spot">Loading…</div>
+        <div style="font-size:12px;color:#9ca3af;margin-bottom:4px">🥇 Gold / oz</div>
+        <div style="font-size:22px;font-weight:700;color:#fff" id="gold-spot">Loading…</div>
       </div>
       <span class="gold-live-badge"><span class="live-dot"></span>Live</span>
     </div>
     <div class="gold-input-row">
-      <input type="number" id="gold-qty" placeholder="0" value="2" min="0" step="0.01" oninput="calcGold()">
-      <select id="gold-unit" onchange="calcGold()"><option value="oz">oz</option><option value="g">grams</option></select>
+      <input type="number" id="gold-qty" placeholder="0" value="2" min="0" step="0.01" oninput="calcMetals()">
+      <select id="gold-unit" onchange="calcMetals()"><option value="oz">oz</option><option value="g">grams</option></select>
       <span style="font-size:13px;color:#9ca3af">you own</span>
     </div>
-    <div class="gold-total" id="gold-value">$0.00</div>
-    <div style="font-size:12px;color:#9ca3af;margin-top:4px">Total gold value</div>
+    <div style="font-size:22px;font-weight:700;background:linear-gradient(135deg,#f59e0b,#fbbf24);-webkit-background-clip:text;-webkit-text-fill-color:transparent" id="gold-value">$0.00</div>
   </div>
 
-  <div class="section-title">Other assets</div>
+  <div class="gold-bar" style="margin-top:10px">
+    <div class="gold-price-row">
+      <div>
+        <div style="font-size:12px;color:#9ca3af;margin-bottom:4px">🥈 Silver / oz</div>
+        <div style="font-size:22px;font-weight:700;color:#fff" id="silver-spot">Loading…</div>
+      </div>
+      <span class="gold-live-badge"><span class="live-dot"></span>Live</span>
+    </div>
+    <div class="gold-input-row">
+      <input type="number" id="silver-qty" placeholder="0" value="0" min="0" step="0.01" oninput="calcMetals()">
+      <select id="silver-unit" onchange="calcMetals()"><option value="oz">oz</option><option value="g">grams</option></select>
+      <span style="font-size:13px;color:#9ca3af">you own</span>
+    </div>
+    <div style="font-size:22px;font-weight:700;color:#9ca3af" id="silver-value">$0.00</div>
+  </div>
+
+  <div class="gold-bar" style="margin-top:10px">
+    <div class="gold-price-row">
+      <div>
+        <div style="font-size:12px;color:#9ca3af;margin-bottom:4px">⚪ Platinum / oz</div>
+        <div style="font-size:22px;font-weight:700;color:#fff" id="platinum-spot">Loading…</div>
+      </div>
+      <span class="gold-live-badge"><span class="live-dot"></span>Live</span>
+    </div>
+    <div class="gold-input-row">
+      <input type="number" id="platinum-qty" placeholder="0" value="0" min="0" step="0.01" oninput="calcMetals()">
+      <select id="platinum-unit" onchange="calcMetals()"><option value="oz">oz</option><option value="g">grams</option></select>
+      <span style="font-size:13px;color:#9ca3af">you own</span>
+    </div>
+    <div style="font-size:22px;font-weight:700;color:#e5e7eb" id="platinum-value">$0.00</div>
+  </div>
+
+  <div class="gold-bar" style="margin-top:10px">
+    <div class="gold-price-row">
+      <div>
+        <div style="font-size:12px;color:#9ca3af;margin-bottom:4px">🔘 Palladium / oz</div>
+        <div style="font-size:22px;font-weight:700;color:#fff" id="palladium-spot">Loading…</div>
+      </div>
+      <span class="gold-live-badge"><span class="live-dot"></span>Live</span>
+    </div>
+    <div class="gold-input-row">
+      <input type="number" id="palladium-qty" placeholder="0" value="0" min="0" step="0.01" oninput="calcMetals()">
+      <select id="palladium-unit" onchange="calcMetals()"><option value="oz">oz</option><option value="g">grams</option></select>
+      <span style="font-size:13px;color:#9ca3af">you own</span>
+    </div>
+    <div style="font-size:22px;font-weight:700;color:#a855f7" id="palladium-value">$0.00</div>
+  </div>
+
+  <div class="gold-bar" style="margin-top:10px;text-align:center">
+    <div style="font-size:12px;color:#9ca3af;margin-bottom:4px">Total precious metals value</div>
+    <div style="font-size:28px;font-weight:700;background:linear-gradient(135deg,#a855f7,#14b8a6);-webkit-background-clip:text;-webkit-text-fill-color:transparent" id="metals-total">$0.00</div>
+  </div>
+
+  <div class="section-title" style="margin-top:20px">Other assets</div>
   <div id="other-assets-list"><div class="empty-state"><div class="empty-icon">📈</div>No assets added yet</div></div>
   <button class="add-btn" onclick="openModal('asset')">+ Add asset</button>
 </div>
@@ -248,7 +301,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 
 <script>
 const API = 'https://clarity-app-production-f748.up.railway.app';
-let goldSpotOz = 0;
+let metalPrices = { gold: 0, silver: 0, platinum: 0, palladium: 0 };
 let allTransactions = [];
 let allAccounts = [];
 let otherAssets = JSON.parse(localStorage.getItem('clarity-assets') || '[]');
@@ -311,7 +364,7 @@ async function connectBank() {
 }
 
 async function loadAll() {
-  await Promise.all([loadAccounts(), loadTransactions(), fetchGoldPrice()]);
+  await Promise.all([loadAccounts(), loadTransactions(), fetchMetalPrices()]);
   updateDashboard();
 }
 
@@ -456,14 +509,51 @@ function updateDashboard() {
   document.getElementById('budget-remaining').textContent = monthlyBudget ? `$${Math.round(Math.max(0, budget - expenses)).toLocaleString()} remaining` : 'Set a budget to track progress';
 }
 
-async function fetchGoldPrice() {
+async function fetchMetalPrices() {
   try {
-    const r = await fetch('https://api.metals.live/v1/spot/gold');
+    const r = await fetch('https://api.metals.dev/v1/latest?api_key=demo&currency=USD&unit=troy_oz');
     const d = await r.json();
-    goldSpotOz = d[0]?.price || 3300;
-  } catch { goldSpotOz = 3300; }
-  document.getElementById('gold-spot').textContent = '$' + goldSpotOz.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
-  calcGold();
+    metalPrices.gold = d.metals?.XAU || 3300;
+    metalPrices.silver = d.metals?.XAG || 32;
+    metalPrices.platinum = d.metals?.XPT || 1000;
+    metalPrices.palladium = d.metals?.XPD || 1050;
+  } catch {
+    metalPrices.gold = 3300;
+    metalPrices.silver = 32;
+    metalPrices.platinum = 1000;
+    metalPrices.palladium = 1050;
+  }
+  updateMetalsUI();
+}
+
+function updateMetalsUI() {
+  document.getElementById('gold-spot').textContent = '$' + metalPrices.gold.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+  const silverEl = document.getElementById('silver-spot');
+  const platEl = document.getElementById('platinum-spot');
+  const palEl = document.getElementById('palladium-spot');
+  if (silverEl) silverEl.textContent = '$' + metalPrices.silver.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+  if (platEl) platEl.textContent = '$' + metalPrices.platinum.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+  if (palEl) palEl.textContent = '$' + metalPrices.palladium.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+  calcMetals();
+}
+
+function calcMetals() {
+  let total = 0;
+  ['gold','silver','platinum','palladium'].forEach(metal => {
+    const qtyEl = document.getElementById(`${metal}-qty`);
+    const unitEl = document.getElementById(`${metal}-unit`);
+    if (!qtyEl) return;
+    const qty = parseFloat(qtyEl.value) || 0;
+    const unit = unitEl?.value || 'oz';
+    const oz = unit === 'g' ? qty / 31.1035 : qty;
+    const val = oz * (metalPrices[metal] || 0);
+    total += val;
+    const valEl = document.getElementById(`${metal}-value`);
+    if (valEl) valEl.textContent = '$' + val.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+  });
+  const totalEl = document.getElementById('metals-total');
+  if (totalEl) totalEl.textContent = '$' + total.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+  return total;
 }
 
 function calcGold() {
