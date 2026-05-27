@@ -514,11 +514,11 @@ async function fetchMetalPrices() {
     const res = await fetch('https://api.metalpriceapi.com/v1/latest?api_key=bf925e5c30175d4a5d6a6c29d442d800&base=XAU&currencies=XAG,XPT,XPD,USD');
     const d = await res.json();
     if (d.success) {
-      const usdPerOz = 1 / d.rates.USD;
-      metalPrices.gold = usdPerOz;
-      metalPrices.silver = (1 / d.rates.XAG) * usdPerOz;
-      metalPrices.platinum = (1 / d.rates.XPT) * usdPerOz;
-      metalPrices.palladium = (1 / d.rates.XPD) * usdPerOz;
+      const goldUSD = d.rates.USD;
+      metalPrices.gold = goldUSD;
+      metalPrices.silver = goldUSD / d.rates.XAG;
+      metalPrices.platinum = goldUSD / d.rates.XPT;
+      metalPrices.palladium = goldUSD / d.rates.XPD;
     }
   } catch (e) {
     console.error('Metals API error:', e);
