@@ -106,5 +106,10 @@ app.get('/api/balances', async (req, res) => {
   }
 });
 
+app.get('/api/reset-tokens', (req, res) => {
+  accessTokens = [];
+  saveTokens([]);
+  res.json({ success: true, message: 'Tokens cleared' });
+});
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => console.log(`Clarity server running on port ${PORT}`));
