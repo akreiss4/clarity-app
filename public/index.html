@@ -298,6 +298,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   </div>
 </div>
 
+<div id="page-budgets" class="page">
+  <div class="section-title">Monthly budgets</div>
+  <div id="budget-list"><div class="empty-state"><div class="empty-icon">🎯</div>Loading budgets...</div></div>
+  <button class="add-btn" onclick="openModal('budget')">+ Set budget</button>
+</div>
+
 <nav class="nav">
   <button class="nav-btn active" onclick="showPage('home',this)">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
@@ -311,9 +317,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
     Accounts
   </button>
-  <button class="nav-btn" onclick="showPage('assets',this)">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
-    Assets
+  <button class="nav-btn" onclick="showPage('budgets',this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+    Budgets
   </button>
   <button class="nav-btn" onclick="showPage('trends',this)">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
@@ -371,6 +377,7 @@ function showPage(name, btn) {
   document.getElementById('page-' + name).classList.add('active');
   btn.classList.add('active');
   if (name === 'trends') loadNetWorthHistory();
+  if (name === 'budgets') { loadBudgets(); }
 }
 
 function openModal(type) { document.getElementById(type + '-modal').classList.add('open'); }
@@ -399,7 +406,7 @@ async function connectBank() {
 }
 
 async function loadAll() {
-  await Promise.all([loadAccounts(), loadTransactions(), fetchMetalPrices()]);
+  await Promise.all([loadAccounts(), loadTransactions(), fetchMetalPrices(), loadBudgets()]);
   updateDashboard();
 }
 
@@ -616,6 +623,79 @@ function saveAsset() {
 
 setTimeout(loadAll, 500);
 
+let budgets = {};
+
+async function loadBudgets() {
+  try {
+    const res = await fetch(`${API}/api/budgets`);
+    const data = await res.json();
+    budgets = data.budgets || {};
+    renderBudgets();
+  } catch { budgets = {}; }
+}
+
+async function saveBudget() {
+  const cat = document.getElementById('budget-cat').value;
+  const amount = parseFloat(document.getElementById('budget-amount').value);
+  if (!amount) return;
+  budgets[cat] = amount;
+  await fetch(`${API}/api/budgets`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ budgets })
+  });
+  closeModal('budget-modal');
+  renderBudgets();
+}
+
+function renderBudgets() {
+  const list = document.getElementById('budget-list');
+  if (!list) return;
+  const now = new Date();
+  const monthTxs = allTransactions.filter(tx => {
+    const d = new Date(tx.date);
+    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear() && tx.amount > 0;
+  });
+  const spending = {};
+  monthTxs.forEach(tx => {
+    const cat = tx.category?.[0] || 'Other';
+    spending[cat] = (spending[cat] || 0) + tx.amount;
+  });
+
+  const allCats = [...new Set([...Object.keys(budgets), ...Object.keys(spending)])];
+  
+  if (!allCats.length) {
+    list.innerHTML = '<div class="empty-state"><div class="empty-icon">🎯</div>No budgets set yet</div>';
+    return;
+  }
+
+  list.innerHTML = allCats.map(cat => {
+    const budget = budgets[cat] || 0;
+    const spent = spending[cat] || 0;
+    const pct = budget > 0 ? Math.min(100, Math.round((spent / budget) * 100)) : 0;
+    const color = pct >= 90 ? '#f43f5e' : pct >= 70 ? '#f59e0b' : '#a855f7';
+    const icon = CATEGORY_ICONS[cat] || '💸';
+    const catColor = CATEGORY_COLORS[cat] || '#6b7280';
+    return `<div class="card" style="margin-bottom:10px;padding:16px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div class="tx-icon" style="background:${catColor}22;width:36px;height:36px;font-size:16px">${icon}</div>
+          <div>
+            <div style="font-size:14px;font-weight:600;color:#fff">${cat}</div>
+            <div style="font-size:12px;color:#9ca3af">$${Math.round(spent).toLocaleString()} of $${Math.round(budget).toLocaleString()}</div>
+          </div>
+        </div>
+        <div style="font-size:14px;font-weight:700;color:${color}">${pct}%</div>
+      </div>
+      <div class="progress-bar-bg">
+        <div class="progress-bar" style="width:${pct}%;background:${color}"></div>
+      </div>
+      ${pct >= 90 ? `<div style="font-size:12px;color:#f43f5e;margin-top:6px">⚠️ Almost at limit!</div>` : ''}
+      ${budget === 0 ? `<div style="font-size:12px;color:#9ca3af;margin-top:6px">No budget set — <span style="color:#a855f7;cursor:pointer" onclick="openModal('budget')">set one</span></div>` : ''}
+    </div>`;
+  }).join('');
+}
+
 async function loadNetWorthHistory() {
   try {
     const res = await fetch(`${API}/api/networth`);
@@ -726,5 +806,32 @@ function drawNetWorthChart(history) {
   document.getElementById('trends-range').textContent = history.length + ' days tracked';
 }
 </script>
+
+<div class="modal-overlay" id="budget-modal">
+  <div class="modal">
+    <div class="modal-title">Set budget</div>
+    <div class="form-group">
+      <label class="form-label">Category</label>
+      <select id="budget-cat">
+        <option>Food and Drink</option>
+        <option>Travel</option>
+        <option>Shops</option>
+        <option>Recreation</option>
+        <option>Healthcare</option>
+        <option>Service</option>
+        <option>Other</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Monthly limit</label>
+      <input type="number" id="budget-amount" placeholder="$500" min="0" step="10">
+    </div>
+    <div class="btn-row">
+      <button class="btn-cancel" onclick="closeModal('budget-modal')">Cancel</button>
+      <button class="btn-save" onclick="saveBudget()">Save</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>

@@ -145,5 +145,24 @@ app.get('/api/networth', async (req, res) => {
   }
 });
 
+app.get('/api/budgets', async (req, res) => {
+  try {
+    const budgets = await redis.get('clarity:budgets') || {};
+    res.json({ budgets });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to get budgets' });
+  }
+});
+
+app.post('/api/budgets', async (req, res) => {
+  try {
+    const { budgets } = req.body;
+    await redis.set('clarity:budgets', budgets);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to save budgets' });
+  }
+});
+
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => console.log(`Clarity server running on port ${PORT}`));
