@@ -420,7 +420,7 @@ function showPage(name, btn) {
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('page-' + name).classList.add('active');
   btn.classList.add('active');
-  if (name === 'trends') { loadNetWorthHistory(); loadSpendingHistory(); renderMonthComparison(); }
+  if (name === 'trends') { loadNetWorthHistory(); loadSpendingHistory(); setTimeout(renderMonthComparison, 1000); }
   if (name === 'budgets') loadBudgets();
   if (name === 'bills') loadBills();
 }
