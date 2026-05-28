@@ -118,6 +118,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .accounts-hero-label{font-size:12px;color:#9ca3af;margin-bottom:4px}
 .accounts-hero-amount{font-size:36px;font-weight:700;color:#fff}
 .accounts-hero-sub{font-size:12px;color:#14b8a6;margin-top:4px}
+
+.range-btn{padding:6px 12px;border:1px solid rgba(168,85,247,0.3);border-radius:20px;background:transparent;color:#9ca3af;font-size:12px;cursor:pointer;transition:all 0.2s}
+.range-btn.active{background:linear-gradient(135deg,#a855f7,#14b8a6);color:#fff;border-color:transparent}
+
 </style>
 </head>
 <body>
@@ -269,7 +273,60 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 </div>
 
 <div id="page-trends" class="page">
+  <div id="page-trends" class="page">
   <div class="section-title">Net worth over time</div>
+  <div class="spending-card">
+    <div class="spending-header">
+      <span class="spending-title">Net Worth History</span>
+      <span class="spending-period" id="trends-range">Loading...</span>
+    </div>
+    <div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap">
+      <button class="range-btn active" onclick="setNetWorthRange('7d',this)">7D</button>
+      <button class="range-btn" onclick="setNetWorthRange('1m',this)">1M</button>
+      <button class="range-btn" onclick="setNetWorthRange('3m',this)">3M</button>
+      <button class="range-btn" onclick="setNetWorthRange('6m',this)">6M</button>
+      <button class="range-btn" onclick="setNetWorthRange('1y',this)">1Y</button>
+      <button class="range-btn" onclick="setNetWorthRange('all',this)">All</button>
+    </div>
+    <canvas id="networth-chart" style="width:100%;height:200px"></canvas>
+    <div style="display:flex;justify-content:space-around;margin-top:16px">
+      <div style="text-align:center">
+        <div style="font-size:11px;color:#9ca3af">Current</div>
+        <div style="font-size:18px;font-weight:700;color:#fff" id="chart-current">—</div>
+      </div>
+      <div style="text-align:center">
+        <div style="font-size:11px;color:#9ca3af">Peak</div>
+        <div style="font-size:18px;font-weight:700;color:#14b8a6" id="chart-peak">—</div>
+      </div>
+      <div style="text-align:center">
+        <div style="font-size:11px;color:#9ca3af">Change</div>
+        <div style="font-size:18px;font-weight:700" id="chart-change">—</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-title">Income vs spending</div>
+  <div class="spending-card">
+    <div class="spending-header">
+      <span class="spending-title">Month over month</span>
+      <span class="spending-period" id="spending-range">Last 12 months</span>
+    </div>
+    <div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap">
+      <button class="range-btn active" onclick="setSpendingRange(3,this)">3M</button>
+      <button class="range-btn" onclick="setSpendingRange(6,this)">6M</button>
+      <button class="range-btn" onclick="setSpendingRange(12,this)">12M</button>
+    </div>
+    <canvas id="spending-chart" style="width:100%;height:220px"></canvas>
+  </div>
+
+  <div class="section-title">This month vs last month</div>
+  <div class="card" id="month-comparison">
+    <div class="empty-state">Loading comparison...</div>
+  </div>
+
+  <div class="section-title">Monthly breakdown</div>
+  <div id="monthly-breakdown"><div class="empty-state"><div class="empty-icon">📅</div>Loading...</div></div>
+</div>
   <div class="spending-card">
     <div class="spending-header">
       <span class="spending-title">Net Worth History</span>
@@ -846,18 +903,97 @@ function renderBudgets() {
 }
 
 async function loadSpendingHistory() {
+let fullNetWorthHistory = [];
+let fullSpendingHistory = [];
+let currentNetWorthRange = '7d';
+let currentSpendingRange = 3;
+
+async function loadSpendingHistory() {
   try {
     const res = await fetch(`${API}/api/spending-history`);
     const data = await res.json();
-    const history = data.history || [];
-    if (history.length === 0) {
-      document.getElementById('trends-range').textContent = 'Need more data';
-      return;
-    }
-    drawSpendingChart(history);
+    fullSpendingHistory = data.history || [];
+    drawSpendingChart(filterSpendingHistory(currentSpendingRange));
+    renderMonthlyBreakdown();
   } catch (e) {
     console.error('Failed to load spending history', e);
   }
+}
+
+function filterSpendingHistory(months) {
+  return fullSpendingHistory.slice(-months);
+}
+
+function setSpendingRange(months, btn) {
+  currentSpendingRange = months;
+  document.querySelectorAll('.range-btn').forEach(b => {
+    if (b.onclick?.toString().includes('setSpendingRange')) b.classList.remove('active');
+  });
+  btn.classList.add('active');
+  document.getElementById('spending-range').textContent = `Last ${months} months`;
+  drawSpendingChart(filterSpendingHistory(months));
+}
+
+function setNetWorthRange(range, btn) {
+  currentNetWorthRange = range;
+  document.querySelectorAll('.range-btn').forEach(b => {
+    if (b.onclick?.toString().includes('setNetWorthRange')) b.classList.remove('active');
+  });
+  btn.classList.add('active');
+  drawFilteredNetWorthChart(range);
+}
+
+function drawFilteredNetWorthChart(range) {
+  if (!fullNetWorthHistory.length) return;
+  const now = new Date();
+  let filtered = fullNetWorthHistory;
+  if (range === '7d') {
+    const cutoff = new Date(now - 7 * 24 * 60 * 60 * 1000);
+    filtered = fullNetWorthHistory.filter(h => new Date(h.date) >= cutoff);
+  } else if (range === '1m') {
+    const cutoff = new Date(now - 30 * 24 * 60 * 60 * 1000);
+    filtered = fullNetWorthHistory.filter(h => new Date(h.date) >= cutoff);
+  } else if (range === '3m') {
+    const cutoff = new Date(now - 90 * 24 * 60 * 60 * 1000);
+    filtered = fullNetWorthHistory.filter(h => new Date(h.date) >= cutoff);
+  } else if (range === '6m') {
+    const cutoff = new Date(now - 180 * 24 * 60 * 60 * 1000);
+    filtered = fullNetWorthHistory.filter(h => new Date(h.date) >= cutoff);
+  } else if (range === '1y') {
+    const cutoff = new Date(now - 365 * 24 * 60 * 60 * 1000);
+    filtered = fullNetWorthHistory.filter(h => new Date(h.date) >= cutoff);
+  }
+  if (filtered.length < 1) {
+    document.getElementById('trends-range').textContent = 'Not enough data for this range';
+    return;
+  }
+  document.getElementById('trends-range').textContent = `${filtered.length} day${filtered.length !== 1 ? 's' : ''} tracked`;
+  drawNetWorthChart(filtered);
+}
+
+function renderMonthlyBreakdown() {
+  const el = document.getElementById('monthly-breakdown');
+  if (!el) return;
+  if (!fullSpendingHistory.length) {
+    el.innerHTML = '<div class="empty-state"><div class="empty-icon">📅</div>No monthly data yet</div>';
+    return;
+  }
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const sorted = [...fullSpendingHistory].reverse();
+  el.innerHTML = '<div class="card">' + sorted.map(entry => {
+    const saved = (entry.income || 0) - (entry.expenses || 0);
+    return `<div class="card-row">
+      <div class="account-info">
+        <div class="account-name">${months[entry.month]} ${entry.year}</div>
+        <div class="account-sub">Income: $${Math.round(entry.income || 0).toLocaleString()}</div>
+      </div>
+      <div style="text-align:right">
+        <div class="account-amount neg">-$${Math.round(entry.expenses || 0).toLocaleString()}</div>
+        <div style="font-size:12px;color:${saved >= 0 ? '#14b8a6' : '#f43f5e'}">Saved: ${saved >= 0 ? '+' : ''}$${Math.round(saved).toLocaleString()}</div>
+      </div>
+    </div>`;
+  }).join('') + '</div>';
+}
 }
 
 function drawSpendingChart(history) {
@@ -982,12 +1118,12 @@ async function loadNetWorthHistory() {
   try {
     const res = await fetch(`${API}/api/networth`);
     const data = await res.json();
-    const history = data.history || [];
-    if (history.length < 2) {
+    fullNetWorthHistory = data.history || [];
+    if (fullNetWorthHistory.length < 1) {
       document.getElementById('trends-range').textContent = 'Need more data';
       return;
     }
-    drawNetWorthChart(history);
+    drawFilteredNetWorthChart(currentNetWorthRange);
   } catch (e) {
     console.error('Failed to load history', e);
   }
