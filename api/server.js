@@ -183,5 +183,29 @@ app.post('/api/bills', async (req, res) => {
   }
 });
 
+app.get('/api/spending-history', async (req, res) => {
+  try {
+    const history = await redis.get('clarity:spending_history') || [];
+    res.json({ history });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to get spending history' });
+  }
+});
+
+app.post('/api/spending-history', async (req, res) => {
+  try {
+    const { month, year, income, expenses, categories } = req.body;
+    const history = await redis.get('clarity:spending_history') || [];
+    const key = `${year}-${month}`;
+    const filtered = history.filter(h => h.key !== key);
+    filtered.push({ key, month, year, income, expenses, categories });
+    const trimmed = filtered.slice(-12);
+    await redis.set('clarity:spending_history', trimmed);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to save spending history' });
+  }
+});
+
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => console.log(`Clarity server running on port ${PORT}`));

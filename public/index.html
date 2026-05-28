@@ -292,9 +292,18 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     </div>
   </div>
 
-  <div class="section-title">Assets vs Liabilities</div>
+  <div class="section-title">Income vs spending</div>
   <div class="spending-card">
-    <canvas id="assets-chart" style="width:100%;height:180px"></canvas>
+    <div class="spending-header">
+      <span class="spending-title">Month over month</span>
+      <span class="spending-period" id="spending-range">Last 12 months</span>
+    </div>
+    <canvas id="spending-chart" style="width:100%;height:220px"></canvas>
+  </div>
+
+  <div class="section-title">This month vs last month</div>
+  <div class="card" id="month-comparison">
+    <div class="empty-state">Loading comparison...</div>
   </div>
 </div>
 
@@ -389,7 +398,7 @@ function showPage(name, btn) {
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('page-' + name).classList.add('active');
   btn.classList.add('active');
-  if (name === 'trends') loadNetWorthHistory();
+  if (name === 'trends') { loadNetWorthHistory(); loadSpendingHistory(); renderMonthComparison(); }
   if (name === 'budgets') loadBudgets();
   if (name === 'bills') loadBills();
 }
@@ -571,6 +580,22 @@ function updateDashboard() {
       body: JSON.stringify({ netWorth: Math.round(netWorth), assets: Math.round(totalAssets), liabilities: Math.round(totalDebt) })
     }).catch(() => {});
   }
+
+  // Save spending snapshot
+  const now2 = new Date();
+  const cats = {};
+  allTransactions.filter(tx => {
+    const d = new Date(tx.date);
+    return d.getMonth() === now2.getMonth() && d.getFullYear() === now2.getFullYear() && tx.amount > 0;
+  }).forEach(tx => {
+    const cat = tx.category?.[0] || 'Other';
+    cats[cat] = (cats[cat] || 0) + tx.amount;
+  });
+  fetch(`${API}/api/spending-history`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ month: now2.getMonth(), year: now2.getFullYear(), income: Math.round(income), expenses: Math.round(expenses), categories: cats })
+  }).catch(() => {});
 }
 
 async function fetchMetalPrices() {
@@ -818,6 +843,139 @@ function renderBudgets() {
       ${budget === 0 ? `<div style="font-size:12px;color:#9ca3af;margin-top:6px">No budget set — <span style="color:#a855f7;cursor:pointer" onclick="openModal('budget')">set one</span></div>` : ''}
     </div>`;
   }).join('');
+}
+
+async function loadSpendingHistory() {
+  try {
+    const res = await fetch(`${API}/api/spending-history`);
+    const data = await res.json();
+    const history = data.history || [];
+    if (history.length === 0) {
+      document.getElementById('trends-range').textContent = 'Need more data';
+      return;
+    }
+    drawSpendingChart(history);
+  } catch (e) {
+    console.error('Failed to load spending history', e);
+  }
+}
+
+function drawSpendingChart(history) {
+  const canvas = document.getElementById('spending-chart');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  canvas.width = canvas.offsetWidth * window.devicePixelRatio;
+  canvas.height = 220 * window.devicePixelRatio;
+  ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+  const w = canvas.offsetWidth;
+  const h = 220;
+  ctx.clearRect(0, 0, w, h);
+
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const pad = { top: 20, right: 20, bottom: 40, left: 60 };
+  const chartW = w - pad.left - pad.right;
+  const chartH = h - pad.top - pad.bottom;
+
+  const maxVal = Math.max(...history.map(h => Math.max(h.income || 0, h.expenses || 0))) * 1.1 || 1;
+  const barWidth = (chartW / history.length) * 0.35;
+
+  // Grid lines
+  ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 4; i++) {
+    const y = pad.top + (chartH / 4) * i;
+    ctx.beginPath();
+    ctx.moveTo(pad.left, y);
+    ctx.lineTo(w - pad.right, y);
+    ctx.stroke();
+    const val = maxVal - (maxVal / 4) * i;
+    ctx.fillStyle = '#6b7280';
+    ctx.font = '10px -apple-system,sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText('$' + Math.round(val / 1000) + 'k', pad.left - 6, y + 4);
+  }
+
+  history.forEach((entry, i) => {
+    const x = pad.left + (i / history.length) * chartW + (chartW / history.length) * 0.15;
+    
+    // Income bar
+    const incomeH = ((entry.income || 0) / maxVal) * chartH;
+    const incomeGrad = ctx.createLinearGradient(0, pad.top + chartH - incomeH, 0, pad.top + chartH);
+    incomeGrad.addColorStop(0, 'rgba(20,184,166,0.9)');
+    incomeGrad.addColorStop(1, 'rgba(20,184,166,0.3)');
+    ctx.fillStyle = incomeGrad;
+    ctx.beginPath();
+    ctx.roundRect(x, pad.top + chartH - incomeH, barWidth, incomeH, 4);
+    ctx.fill();
+
+    // Expense bar
+    const expH = ((entry.expenses || 0) / maxVal) * chartH;
+    const expGrad = ctx.createLinearGradient(0, pad.top + chartH - expH, 0, pad.top + chartH);
+    expGrad.addColorStop(0, 'rgba(168,85,247,0.9)');
+    expGrad.addColorStop(1, 'rgba(168,85,247,0.3)');
+    ctx.fillStyle = expGrad;
+    ctx.beginPath();
+    ctx.roundRect(x + barWidth + 3, pad.top + chartH - expH, barWidth, expH, 4);
+    ctx.fill();
+
+    // Month label
+    ctx.fillStyle = '#6b7280';
+    ctx.font = '9px -apple-system,sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(months[entry.month], x + barWidth, h - pad.bottom + 14);
+  });
+
+  // Legend
+  ctx.fillStyle = '#14b8a6';
+  ctx.fillRect(pad.left, h - 16, 10, 8);
+  ctx.fillStyle = '#9ca3af';
+  ctx.font = '10px -apple-system,sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText('Income', pad.left + 14, h - 9);
+
+  ctx.fillStyle = '#a855f7';
+  ctx.fillRect(pad.left + 70, h - 16, 10, 8);
+  ctx.fillText('Expenses', pad.left + 84, h - 9);
+}
+
+function renderMonthComparison() {
+  const el = document.getElementById('month-comparison');
+  if (!el || allTransactions.length === 0) return;
+  const now = new Date();
+  const thisMonth = allTransactions.filter(tx => {
+    const d = new Date(tx.date);
+    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear() && tx.amount > 0;
+  }).reduce((s, tx) => s + tx.amount, 0);
+  const lastMonth = allTransactions.filter(tx => {
+    const d = new Date(tx.date);
+    const last = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    return d.getMonth() === last.getMonth() && d.getFullYear() === last.getFullYear() && tx.amount > 0;
+  }).reduce((s, tx) => s + tx.amount, 0);
+  const diff = thisMonth - lastMonth;
+  const pct = lastMonth > 0 ? Math.round((diff / lastMonth) * 100) : 0;
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  el.innerHTML = `
+    <div class="card-row">
+      <div class="account-info">
+        <div class="account-name">${months[now.getMonth()]} (this month)</div>
+        <div class="account-sub">Current spending</div>
+      </div>
+      <div class="account-amount">$${Math.round(thisMonth).toLocaleString()}</div>
+    </div>
+    <div class="card-row">
+      <div class="account-info">
+        <div class="account-name">${months[(now.getMonth() + 11) % 12]} (last month)</div>
+        <div class="account-sub">Previous spending</div>
+      </div>
+      <div class="account-amount">$${Math.round(lastMonth).toLocaleString()}</div>
+    </div>
+    <div class="card-row">
+      <div class="account-info">
+        <div class="account-name">Difference</div>
+        <div class="account-sub">${Math.abs(pct)}% ${diff >= 0 ? 'more' : 'less'} than last month</div>
+      </div>
+      <div class="account-amount" style="color:${diff >= 0 ? '#f43f5e' : '#14b8a6'}">${diff >= 0 ? '+' : ''}$${Math.round(diff).toLocaleString()}</div>
+    </div>`;
 }
 
 async function loadNetWorthHistory() {
