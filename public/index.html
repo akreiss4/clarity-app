@@ -891,9 +891,7 @@ function filterSpendingHistory(months) {
 
 function setSpendingRange(months, btn) {
   currentSpendingRange = months;
-  document.querySelectorAll('.range-btn').forEach(b => {
-    if (b.onclick?.toString().includes('setSpendingRange')) b.classList.remove('active');
-  });
+  btn.closest('.spending-card').querySelectorAll('.range-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
   document.getElementById('spending-range').textContent = `Last ${months} months`;
   drawSpendingChart(filterSpendingHistory(months));
@@ -901,9 +899,7 @@ function setSpendingRange(months, btn) {
 
 function setNetWorthRange(range, btn) {
   currentNetWorthRange = range;
-  document.querySelectorAll('.range-btn').forEach(b => {
-    if (b.onclick?.toString().includes('setNetWorthRange')) b.classList.remove('active');
-  });
+  btn.closest('.spending-card').querySelectorAll('.range-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
   drawFilteredNetWorthChart(range);
 }
