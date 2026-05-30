@@ -202,6 +202,46 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 
 <!-- ASSETS PAGE -->
 <div id="page-assets" class="page">
+  <div class="section-title">Trends</div>
+  <div class="spending-card">
+    <div class="spending-header">
+      <span class="spending-title">Net Worth History</span>
+      <span class="spending-period" id="trends-range">Loading...</span>
+    </div>
+    <div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap">
+      <button class="range-btn active" onclick="setNetWorthRange('7d',this)">7D</button>
+      <button class="range-btn" onclick="setNetWorthRange('1m',this)">1M</button>
+      <button class="range-btn" onclick="setNetWorthRange('3m',this)">3M</button>
+      <button class="range-btn" onclick="setNetWorthRange('6m',this)">6M</button>
+      <button class="range-btn" onclick="setNetWorthRange('1y',this)">1Y</button>
+      <button class="range-btn" onclick="setNetWorthRange('all',this)">All</button>
+    </div>
+    <canvas id="networth-chart" style="width:100%;height:200px"></canvas>
+    <div style="display:flex;justify-content:space-around;margin-top:16px">
+      <div style="text-align:center"><div style="font-size:11px;color:#9ca3af">Current</div><div style="font-size:18px;font-weight:700;color:#fff" id="chart-current">—</div></div>
+      <div style="text-align:center"><div style="font-size:11px;color:#9ca3af">Peak</div><div style="font-size:18px;font-weight:700;color:#14b8a6" id="chart-peak">—</div></div>
+      <div style="text-align:center"><div style="font-size:11px;color:#9ca3af">Change</div><div style="font-size:18px;font-weight:700" id="chart-change">—</div></div>
+    </div>
+  </div>
+  <div class="spending-card">
+    <div class="spending-header">
+      <span class="spending-title">Month over month</span>
+      <span class="spending-period" id="spending-range">Last 3 months</span>
+    </div>
+    <div style="display:flex;gap:6px;margin-bottom:14px">
+      <button class="range-btn active" onclick="setSpendingRange(3,this)">3M</button>
+      <button class="range-btn" onclick="setSpendingRange(6,this)">6M</button>
+      <button class="range-btn" onclick="setSpendingRange(12,this)">12M</button>
+    </div>
+    <canvas id="spending-chart" style="width:100%;height:220px"></canvas>
+  </div>
+  <div class="section-title">This month vs last month</div>
+  <div class="card" id="month-comparison"><div class="empty-state">Loading...</div></div>
+  <div class="section-title">Monthly breakdown</div>
+  <div id="monthly-breakdown"><div class="empty-state"><div class="empty-icon">📅</div>Loading...</div></div>
+</div>
+
+<!-- BILLS PAGE -->
   <div class="section-title">Precious metals</div>
   <div class="gold-bar">
     <div class="gold-price-row">
@@ -255,46 +295,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     <div style="font-size:12px;color:#9ca3af;margin-bottom:4px">Total precious metals value</div>
     <div style="font-size:28px;font-weight:700;background:linear-gradient(135deg,#a855f7,#14b8a6);-webkit-background-clip:text;-webkit-text-fill-color:transparent" id="metals-total">$0.00</div>
   </div>
-  <div class="section-title">Trends</div>
-  <div class="spending-card">
-    <div class="spending-header">
-      <span class="spending-title">Net Worth History</span>
-      <span class="spending-period" id="trends-range">Loading...</span>
-    </div>
-    <div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap">
-      <button class="range-btn active" onclick="setNetWorthRange('7d',this)">7D</button>
-      <button class="range-btn" onclick="setNetWorthRange('1m',this)">1M</button>
-      <button class="range-btn" onclick="setNetWorthRange('3m',this)">3M</button>
-      <button class="range-btn" onclick="setNetWorthRange('6m',this)">6M</button>
-      <button class="range-btn" onclick="setNetWorthRange('1y',this)">1Y</button>
-      <button class="range-btn" onclick="setNetWorthRange('all',this)">All</button>
-    </div>
-    <canvas id="networth-chart" style="width:100%;height:200px"></canvas>
-    <div style="display:flex;justify-content:space-around;margin-top:16px">
-      <div style="text-align:center"><div style="font-size:11px;color:#9ca3af">Current</div><div style="font-size:18px;font-weight:700;color:#fff" id="chart-current">—</div></div>
-      <div style="text-align:center"><div style="font-size:11px;color:#9ca3af">Peak</div><div style="font-size:18px;font-weight:700;color:#14b8a6" id="chart-peak">—</div></div>
-      <div style="text-align:center"><div style="font-size:11px;color:#9ca3af">Change</div><div style="font-size:18px;font-weight:700" id="chart-change">—</div></div>
-    </div>
-  </div>
-  <div class="spending-card">
-    <div class="spending-header">
-      <span class="spending-title">Month over month</span>
-      <span class="spending-period" id="spending-range">Last 3 months</span>
-    </div>
-    <div style="display:flex;gap:6px;margin-bottom:14px">
-      <button class="range-btn active" onclick="setSpendingRange(3,this)">3M</button>
-      <button class="range-btn" onclick="setSpendingRange(6,this)">6M</button>
-      <button class="range-btn" onclick="setSpendingRange(12,this)">12M</button>
-    </div>
-    <canvas id="spending-chart" style="width:100%;height:220px"></canvas>
-  </div>
-  <div class="section-title">This month vs last month</div>
-  <div class="card" id="month-comparison"><div class="empty-state">Loading...</div></div>
-  <div class="section-title">Monthly breakdown</div>
-  <div id="monthly-breakdown"><div class="empty-state"><div class="empty-icon">📅</div>Loading...</div></div>
-</div>
-
-<!-- BILLS PAGE -->
 <div id="page-bills" class="page">
   <div class="accounts-hero">
     <div class="accounts-hero-label">Total monthly bills</div>
