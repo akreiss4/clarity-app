@@ -45,7 +45,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 
 /* Nav */
 .nav{display:flex;background:#13131f;border-top:1px solid rgba(168,85,247,0.2);position:fixed;bottom:0;width:100%;max-width:390px;z-index:50}
-.nav-btn{flex:1;padding:10px 2px 8px;background:none;border:none;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:8px;color:#4b5563;transition:color 0.2s}
+.nav-btn{flex:1;padding:10px 4px 8px;background:none;border:none;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:9px;color:#4b5563;transition:color 0.2s}
 .nav-btn.active{color:#a855f7}
 .nav-btn svg{width:22px;height:22px}
 
@@ -144,7 +144,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .forecast-value{font-size:24px;font-weight:700;color:#a855f7}
 .forecast-sub{font-size:12px;color:#6b7280;margin-top:4px}
 
-/* Spending tab */
+/* Spending categories (inside Transactions tab) */
 .donut-wrap{position:relative;width:100%;height:220px;display:flex;align-items:center;justify-content:center}
 #spending-donut{width:100%;height:220px;display:block}
 .donut-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none}
@@ -210,36 +210,40 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 
 <!-- TRANSACTIONS PAGE -->
 <div id="page-transactions" class="page">
-  <div style="display:flex;gap:8px;margin-bottom:16px;overflow-x:auto;padding-bottom:4px">
-    <input type="text" id="tx-search" placeholder="Search transactions..." oninput="filterTransactions()" style="flex:1;padding:10px 14px;border:1px solid rgba(168,85,247,0.25);border-radius:12px;font-size:14px;background:#1a1035;color:#fff">
+  <div class="tx-view-toggle filter-pills" style="padding-bottom:0;margin-bottom:16px">
+    <button class="pill active" onclick="setTxView('list',this)">List</button>
+    <button class="pill" onclick="setTxView('categories',this)">Categories</button>
   </div>
-  <div id="tx-list"><div class="empty-state"><div class="empty-icon">💳</div>No transactions yet</div></div>
-</div>
-
-<!-- SPENDING PAGE -->
-<div id="page-spending" class="page">
-  <div class="accounts-hero">
-    <div class="accounts-hero-label">Total spending</div>
-    <div class="accounts-hero-amount" id="spending-total">$0</div>
-    <div class="accounts-hero-sub" id="spending-period-label">This month</div>
+  <div id="tx-list-view">
+    <div style="display:flex;gap:8px;margin-bottom:16px;overflow-x:auto;padding-bottom:4px">
+      <input type="text" id="tx-search" placeholder="Search transactions..." oninput="filterTransactions()" style="flex:1;padding:10px 14px;border:1px solid rgba(168,85,247,0.25);border-radius:12px;font-size:14px;background:#1a1035;color:#fff">
+    </div>
+    <div id="tx-list"><div class="empty-state"><div class="empty-icon">💳</div>No transactions yet</div></div>
   </div>
-  <div style="display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap">
-    <button class="range-btn active" onclick="setSpendingPeriod('month',this)">This month</button>
-    <button class="range-btn" onclick="setSpendingPeriod('3m',this)">3M</button>
-    <button class="range-btn" onclick="setSpendingPeriod('6m',this)">6M</button>
-    <button class="range-btn" onclick="setSpendingPeriod('1y',this)">1Y</button>
-  </div>
-  <div class="spending-card" style="padding:16px 12px 12px">
-    <div class="donut-wrap">
-      <canvas id="spending-donut"></canvas>
-      <div class="donut-center">
-        <div class="donut-center-label">Total</div>
-        <div class="donut-center-amount" id="spending-donut-total">$0</div>
+  <div id="tx-categories-view" style="display:none">
+    <div class="accounts-hero">
+      <div class="accounts-hero-label">Total spending</div>
+      <div class="accounts-hero-amount" id="spending-total">$0</div>
+      <div class="accounts-hero-sub" id="spending-period-label">This month</div>
+    </div>
+    <div style="display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap">
+      <button class="range-btn active" onclick="setSpendingPeriod('month',this)">This month</button>
+      <button class="range-btn" onclick="setSpendingPeriod('3m',this)">3M</button>
+      <button class="range-btn" onclick="setSpendingPeriod('6m',this)">6M</button>
+      <button class="range-btn" onclick="setSpendingPeriod('1y',this)">1Y</button>
+    </div>
+    <div class="spending-card" style="padding:16px 12px 12px">
+      <div class="donut-wrap">
+        <canvas id="spending-donut"></canvas>
+        <div class="donut-center">
+          <div class="donut-center-label">Total</div>
+          <div class="donut-center-amount" id="spending-donut-total">$0</div>
+        </div>
       </div>
     </div>
+    <div class="section-title">Categories <span id="spending-cat-count" style="color:#6b7280;font-weight:500"></span></div>
+    <div id="spending-categories-list"><div class="empty-state"><div class="empty-icon">📊</div>Connect a bank to see spending</div></div>
   </div>
-  <div class="section-title">Categories <span id="spending-cat-count" style="color:#6b7280;font-weight:500"></span></div>
-  <div id="spending-categories-list"><div class="empty-state"><div class="empty-icon">📊</div>Connect a bank to see spending</div></div>
 </div>
 
 <!-- ACCOUNTS PAGE -->
@@ -376,11 +380,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   </button>
   <button class="nav-btn" onclick="showPage('transactions',this)">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
-    Txns
-  </button>
-  <button class="nav-btn" onclick="showPage('spending',this)">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.21 15.89A10 10 0 118 2.83"/><path d="M22 12A10 10 0 0012 2v10z"/></svg>
-    Spending
+    Transactions
   </button>
   <button class="nav-btn" onclick="showPage('accounts',this)">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
@@ -484,6 +484,7 @@ let fullSpendingHistory = [];
 let currentNetWorthRange = '7d';
 let currentSpendingRange = 3;
 let spendingPeriod = 'month';
+let txView = 'list';
 const SPENDING_PERIOD_LABELS = { month: 'This month', '3m': 'Last 3 months', '6m': 'Last 6 months', '1y': 'Last year' };
 let currentFilter = 'all';
 let homeRange = '3m';
@@ -509,7 +510,7 @@ function showPage(name, btn) {
   document.getElementById('page-' + name).classList.add('active');
   btn.classList.add('active');
   if (name === 'home') requestAnimationFrame(() => drawHomeChart());
-  if (name === 'spending') requestAnimationFrame(() => renderSpendingTab());
+  if (name === 'transactions' && txView === 'categories') requestAnimationFrame(() => renderSpendingTab());
   if (name === 'assets') { loadNetWorthHistory(); loadSpendingHistory(); renderMonthComparison(); }
   if (name === 'budgets') loadBudgets();
   if (name === 'bills') loadBills();
@@ -720,6 +721,15 @@ function renderTransactions() {
   filterTransactions();
 }
 
+function setTxView(view, btn) {
+  txView = view;
+  document.querySelectorAll('.tx-view-toggle .pill').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('tx-list-view').style.display = view === 'list' ? 'block' : 'none';
+  document.getElementById('tx-categories-view').style.display = view === 'categories' ? 'block' : 'none';
+  if (view === 'categories') requestAnimationFrame(() => renderSpendingTab());
+}
+
 function filterTransactions() {
   const list = document.getElementById('tx-list');
   const query = (document.getElementById('tx-search')?.value || '').toLowerCase();
@@ -796,7 +806,7 @@ function getSpendingCategories(period) {
 
 function setSpendingPeriod(period, btn) {
   spendingPeriod = period;
-  btn.closest('.page').querySelectorAll('.range-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tx-categories-view').querySelectorAll('.range-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
   renderSpendingTab();
 }
