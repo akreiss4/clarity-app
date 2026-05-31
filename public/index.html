@@ -25,7 +25,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .networth-hero{background:linear-gradient(160deg,#1a0533 0%,#0d1f3c 100%);padding:0 16px 20px}
 .networth-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px}
 .networth-label{font-size:14px;color:rgba(255,255,255,0.6)}
-.range-selector{display:flex;align-items:center;gap:6px;background:rgba(255,255,255,0.1);border:none;border-radius:20px;padding:6px 12px;color:#fff;font-size:12px;cursor:pointer}
+.range-dropdown{position:relative;z-index:20}
+.range-dropdown-trigger{display:flex;align-items:center;gap:6px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.15);border-radius:20px;padding:6px 12px;color:#fff;font-size:12px;cursor:pointer}
+.range-dropdown-trigger .range-chevron{font-size:10px;opacity:0.7;transition:transform 0.2s}
+.range-dropdown.open .range-chevron{transform:rotate(180deg)}
+.range-dropdown-menu{display:none;position:absolute;top:calc(100% + 6px);right:0;min-width:140px;background:#13131f;border:1px solid rgba(168,85,247,0.3);border-radius:14px;padding:6px;box-shadow:0 8px 24px rgba(0,0,0,0.5)}
+.range-dropdown.open .range-dropdown-menu{display:block}
+.range-dropdown-item{display:block;width:100%;text-align:left;background:transparent;border:none;border-radius:10px;padding:10px 12px;color:rgba(255,255,255,0.75);font-size:13px;cursor:pointer}
+.range-dropdown-item:hover,.range-dropdown-item.active{background:rgba(168,85,247,0.2);color:#fff}
 .networth-amount{font-size:44px;font-weight:700;color:#fff;letter-spacing:-1px;margin-bottom:4px}
 .networth-change{font-size:13px;margin-bottom:12px}
 .networth-change.positive{color:#14b8a6}
@@ -160,9 +167,19 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   <div class="networth-hero">
     <div class="networth-top">
       <span class="networth-label">Net worth</span>
-      <button class="range-selector" onclick="cycleHomeRange()">
-        <span id="home-range-label">3 months</span> ▾
-      </button>
+      <div class="range-dropdown" id="home-range-dropdown">
+        <button type="button" class="range-dropdown-trigger" onclick="toggleHomeRangeMenu(event)">
+          <span id="home-range-label">3 months</span>
+          <span class="range-chevron">▾</span>
+        </button>
+        <div class="range-dropdown-menu" id="home-range-menu">
+          <button type="button" class="range-dropdown-item" data-value="1m" onclick="setHomeRange('1m', this)">1 month</button>
+          <button type="button" class="range-dropdown-item active" data-value="3m" onclick="setHomeRange('3m', this)">3 months</button>
+          <button type="button" class="range-dropdown-item" data-value="6m" onclick="setHomeRange('6m', this)">6 months</button>
+          <button type="button" class="range-dropdown-item" data-value="1y" onclick="setHomeRange('1y', this)">1 year</button>
+          <button type="button" class="range-dropdown-item" data-value="all" onclick="setHomeRange('all', this)">All time</button>
+        </div>
+      </div>
     </div>
     <div class="networth-amount" id="home-networth">—</div>
     <div class="networth-change" id="home-change">Calculating...</div>
@@ -427,7 +444,7 @@ let currentNetWorthRange = '7d';
 let currentSpendingRange = 3;
 let currentFilter = 'all';
 let homeRange = '3m';
-let homeRangeOptions = ['1m','3m','6m','1y','all'];
+const HOME_RANGE_LABELS = {'1m':'1 month','3m':'3 months','6m':'6 months','1y':'1 year','all':'All time'};
 
 const CATEGORY_COLORS = {
   'Food and Drink':'#f43f5e','Travel':'#a855f7','Shops':'#14b8a6',
@@ -448,6 +465,7 @@ function showPage(name, btn) {
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('page-' + name).classList.add('active');
   btn.classList.add('active');
+  if (name === 'home') requestAnimationFrame(() => drawHomeChart());
   if (name === 'assets') { loadNetWorthHistory(); loadSpendingHistory(); renderMonthComparison(); }
   if (name === 'budgets') loadBudgets();
   if (name === 'bills') loadBills();
@@ -465,14 +483,21 @@ function setFilter(filter, btn) {
   updateHomeNetWorth();
 }
 
-// Home range cycling
-function cycleHomeRange() {
-  const idx = homeRangeOptions.indexOf(homeRange);
-  homeRange = homeRangeOptions[(idx + 1) % homeRangeOptions.length];
-  const labels = {'1m':'1 month','3m':'3 months','6m':'6 months','1y':'1 year','all':'All time'};
-  document.getElementById('home-range-label').textContent = labels[homeRange];
+// Home range dropdown
+function toggleHomeRangeMenu(e) {
+  e.stopPropagation();
+  document.getElementById('home-range-dropdown').classList.toggle('open');
+}
+
+function setHomeRange(range, btn) {
+  homeRange = range;
+  document.getElementById('home-range-label').textContent = HOME_RANGE_LABELS[range];
+  document.querySelectorAll('.range-dropdown-item').forEach(i => i.classList.toggle('active', i.dataset.value === range));
+  document.getElementById('home-range-dropdown').classList.remove('open');
   drawHomeChart();
 }
+
+document.addEventListener('click', () => document.getElementById('home-range-dropdown')?.classList.remove('open'));
 
 async function loadAll() {
   await Promise.all([loadAccounts(), loadTransactions(), fetchMetalPrices(), loadBudgets(), loadBills()]);
@@ -866,6 +891,7 @@ function updateForecast() {
 function drawHomeChart() {
   const canvas=document.getElementById('home-chart');
   if (!canvas||!fullNetWorthHistory.length) return;
+  if (!canvas.offsetWidth) return;
   const ctx=canvas.getContext('2d');
   canvas.width=canvas.offsetWidth*window.devicePixelRatio;
   canvas.height=180*window.devicePixelRatio;
