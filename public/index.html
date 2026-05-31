@@ -45,7 +45,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 
 /* Nav */
 .nav{display:flex;background:#13131f;border-top:1px solid rgba(168,85,247,0.2);position:fixed;bottom:0;width:100%;max-width:390px;z-index:50}
-.nav-btn{flex:1;padding:10px 4px 8px;background:none;border:none;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:9px;color:#4b5563;transition:color 0.2s}
+.nav-btn{flex:1;padding:10px 2px 8px;background:none;border:none;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:8px;color:#4b5563;transition:color 0.2s}
 .nav-btn.active{color:#a855f7}
 .nav-btn svg{width:22px;height:22px}
 
@@ -143,6 +143,17 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .forecast-label{font-size:12px;color:#9ca3af;margin-bottom:4px}
 .forecast-value{font-size:24px;font-weight:700;color:#a855f7}
 .forecast-sub{font-size:12px;color:#6b7280;margin-top:4px}
+
+/* Spending tab */
+.donut-wrap{position:relative;width:100%;height:220px;display:flex;align-items:center;justify-content:center}
+#spending-donut{width:100%;height:220px;display:block}
+.donut-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none}
+.donut-center-label{font-size:11px;color:#9ca3af}
+.donut-center-amount{font-size:22px;font-weight:700;color:#fff}
+.category-rank-meta{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.category-rank-bar-bg{height:5px;background:rgba(255,255,255,0.08);border-radius:3px;overflow:hidden}
+.category-rank-bar{height:100%;border-radius:3px;transition:width 0.4s}
+.category-rank-pct{font-size:12px;color:#9ca3af;font-weight:600}
 </style>
 </head>
 <body>
@@ -203,6 +214,32 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     <input type="text" id="tx-search" placeholder="Search transactions..." oninput="filterTransactions()" style="flex:1;padding:10px 14px;border:1px solid rgba(168,85,247,0.25);border-radius:12px;font-size:14px;background:#1a1035;color:#fff">
   </div>
   <div id="tx-list"><div class="empty-state"><div class="empty-icon">💳</div>No transactions yet</div></div>
+</div>
+
+<!-- SPENDING PAGE -->
+<div id="page-spending" class="page">
+  <div class="accounts-hero">
+    <div class="accounts-hero-label">Total spending</div>
+    <div class="accounts-hero-amount" id="spending-total">$0</div>
+    <div class="accounts-hero-sub" id="spending-period-label">This month</div>
+  </div>
+  <div style="display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap">
+    <button class="range-btn active" onclick="setSpendingPeriod('month',this)">This month</button>
+    <button class="range-btn" onclick="setSpendingPeriod('3m',this)">3M</button>
+    <button class="range-btn" onclick="setSpendingPeriod('6m',this)">6M</button>
+    <button class="range-btn" onclick="setSpendingPeriod('1y',this)">1Y</button>
+  </div>
+  <div class="spending-card" style="padding:16px 12px 12px">
+    <div class="donut-wrap">
+      <canvas id="spending-donut"></canvas>
+      <div class="donut-center">
+        <div class="donut-center-label">Total</div>
+        <div class="donut-center-amount" id="spending-donut-total">$0</div>
+      </div>
+    </div>
+  </div>
+  <div class="section-title">Categories <span id="spending-cat-count" style="color:#6b7280;font-weight:500"></span></div>
+  <div id="spending-categories-list"><div class="empty-state"><div class="empty-icon">📊</div>Connect a bank to see spending</div></div>
 </div>
 
 <!-- ACCOUNTS PAGE -->
@@ -339,7 +376,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   </button>
   <button class="nav-btn" onclick="showPage('transactions',this)">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
-    Transactions
+    Txns
+  </button>
+  <button class="nav-btn" onclick="showPage('spending',this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.21 15.89A10 10 0 118 2.83"/><path d="M22 12A10 10 0 0012 2v10z"/></svg>
+    Spending
   </button>
   <button class="nav-btn" onclick="showPage('accounts',this)">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
@@ -442,6 +483,8 @@ let fullNetWorthHistory = [];
 let fullSpendingHistory = [];
 let currentNetWorthRange = '7d';
 let currentSpendingRange = 3;
+let spendingPeriod = 'month';
+const SPENDING_PERIOD_LABELS = { month: 'This month', '3m': 'Last 3 months', '6m': 'Last 6 months', '1y': 'Last year' };
 let currentFilter = 'all';
 let homeRange = '3m';
 const HOME_RANGE_LABELS = {'1m':'1 month','3m':'3 months','6m':'6 months','1y':'1 year','all':'All time'};
@@ -466,6 +509,7 @@ function showPage(name, btn) {
   document.getElementById('page-' + name).classList.add('active');
   btn.classList.add('active');
   if (name === 'home') requestAnimationFrame(() => drawHomeChart());
+  if (name === 'spending') requestAnimationFrame(() => renderSpendingTab());
   if (name === 'assets') { loadNetWorthHistory(); loadSpendingHistory(); renderMonthComparison(); }
   if (name === 'budgets') loadBudgets();
   if (name === 'bills') loadBills();
@@ -522,6 +566,7 @@ async function loadTransactions() {
     allTransactions = data.transactions || [];
     renderTransactions();
     renderRecent();
+    renderSpendingTab();
     saveSnapshots();
   } catch { allTransactions = []; }
 }
@@ -717,6 +762,127 @@ function renderRecent() {
       <div class="tx-amount ${incoming?'positive':'negative'}">${incoming?'+':'-'}$${Math.abs(tx.amount).toFixed(2)}</div>
     </div>`;
   }).join('') + '</div>';
+}
+
+function getSpendingExpenses(period) {
+  const now = new Date();
+  return allTransactions.filter(tx => {
+    if (tx.amount <= 0) return false;
+    const cat = tx.category?.[0] || 'Other';
+    if (cat === 'Transfer' || cat === 'Payment') return false;
+    const d = new Date(tx.date);
+    if (period === 'month') return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+    if (period === '3m') return d >= new Date(now - 90 * 86400000);
+    if (period === '6m') return d >= new Date(now - 180 * 86400000);
+    if (period === '1y') return d >= new Date(now - 365 * 86400000);
+    return true;
+  });
+}
+
+function getSpendingCategories(period) {
+  const cats = {};
+  getSpendingExpenses(period).forEach(tx => {
+    const cat = tx.category?.[0] || 'Other';
+    cats[cat] = (cats[cat] || 0) + tx.amount;
+  });
+  return Object.entries(cats)
+    .map(([name, amount]) => ({
+      name, amount,
+      color: CATEGORY_COLORS[name] || '#6b7280',
+      icon: CATEGORY_ICONS[name] || '💸'
+    }))
+    .sort((a, b) => b.amount - a.amount);
+}
+
+function setSpendingPeriod(period, btn) {
+  spendingPeriod = period;
+  btn.closest('.page').querySelectorAll('.range-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderSpendingTab();
+}
+
+function renderSpendingTab() {
+  const categories = getSpendingCategories(spendingPeriod);
+  const total = categories.reduce((s, c) => s + c.amount, 0);
+  const fmt = n => '$' + Math.round(n).toLocaleString();
+
+  document.getElementById('spending-total').textContent = fmt(total);
+  document.getElementById('spending-period-label').textContent = SPENDING_PERIOD_LABELS[spendingPeriod];
+  document.getElementById('spending-donut-total').textContent = fmt(total);
+  document.getElementById('spending-cat-count').textContent = categories.length ? `· ${categories.length} categories` : '';
+
+  const list = document.getElementById('spending-categories-list');
+  if (!allTransactions.length) {
+    list.innerHTML = '<div class="empty-state"><div class="empty-icon">📊</div>Connect a bank to see spending</div>';
+    drawSpendingDonut([], 0);
+    return;
+  }
+  if (!categories.length) {
+    list.innerHTML = '<div class="empty-state"><div class="empty-icon">📊</div>No spending in this period</div>';
+    drawSpendingDonut([], 0);
+    return;
+  }
+
+  list.innerHTML = '<div class="card">' + categories.map((cat, i) => {
+    const pct = total > 0 ? Math.round((cat.amount / total) * 100) : 0;
+    return `<div class="card-row" style="flex-direction:column;align-items:stretch;gap:0">
+      <div style="display:flex;align-items:center;gap:12px;width:100%">
+        <div style="font-size:13px;color:#6b7280;font-weight:600;width:20px;text-align:center">${i + 1}</div>
+        <div class="tx-icon" style="background:${cat.color}22;width:38px;height:38px;font-size:18px">${cat.icon}</div>
+        <div class="account-info">
+          <div class="account-name">${cat.name}</div>
+          <div class="account-sub">${pct}% of total</div>
+        </div>
+        <div class="tx-amount negative">$${cat.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+      </div>
+      <div style="padding:8px 0 0 70px">
+        <div class="category-rank-bar-bg"><div class="category-rank-bar" style="width:${pct}%;background:${cat.color}"></div></div>
+      </div>
+    </div>`;
+  }).join('') + '</div>';
+
+  drawSpendingDonut(categories, total);
+}
+
+function drawSpendingDonut(categories, total) {
+  const canvas = document.getElementById('spending-donut');
+  if (!canvas) return;
+  if (!canvas.offsetWidth) return;
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio;
+  const h = 220;
+  canvas.width = canvas.offsetWidth * dpr;
+  canvas.height = h * dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const w = canvas.offsetWidth;
+  ctx.clearRect(0, 0, w, h);
+
+  const cx = w / 2, cy = h / 2;
+  const outerR = Math.min(w, h) / 2 - 12;
+  const innerR = outerR * 0.58;
+
+  if (!categories.length || total <= 0) {
+    ctx.beginPath();
+    ctx.arc(cx, cy, outerR, 0, Math.PI * 2);
+    ctx.arc(cx, cy, innerR, 0, Math.PI * 2, true);
+    ctx.fillStyle = 'rgba(255,255,255,0.06)';
+    ctx.fill();
+    return;
+  }
+
+  let startAngle = -Math.PI / 2;
+  categories.forEach(cat => {
+    const slice = (cat.amount / total) * Math.PI * 2;
+    if (slice < 0.001) return;
+    const endAngle = startAngle + slice;
+    ctx.beginPath();
+    ctx.arc(cx, cy, outerR, startAngle, endAngle);
+    ctx.arc(cx, cy, innerR, endAngle, startAngle, true);
+    ctx.closePath();
+    ctx.fillStyle = cat.color;
+    ctx.fill();
+    startAngle = endAngle;
+  });
 }
 
 function saveSnapshots() {
