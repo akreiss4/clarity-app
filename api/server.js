@@ -76,7 +76,7 @@ app.get('/api/transactions', async (req, res) => {
     for (const token of tokens) {
       const now = new Date();
       const start = new Date();
-      start.setDate(now.getDate() - 30);
+      start.setDate(now.getDate() - 365);
       const response = await plaidClient.transactionsGet({
         access_token: token,
         start_date: start.toISOString().split('T')[0],

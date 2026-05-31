@@ -491,14 +491,47 @@ let homeRange = '3m';
 const HOME_RANGE_LABELS = {'1m':'1 month','3m':'3 months','6m':'6 months','1y':'1 year','all':'All time'};
 
 const CATEGORY_COLORS = {
-  'Food and Drink':'#f43f5e','Travel':'#a855f7','Shops':'#14b8a6',
+  'Food and Drink':'#f43f5e','Travel':'#a855f7','Shops':'#14b8a6','Shopping':'#14b8a6',
   'Recreation':'#f59e0b','Transfer':'#6366f1','Payment':'#8b5cf6',
-  'Healthcare':'#ec4899','Service':'#06b6d4','Other':'#6b7280'
+  'Healthcare':'#ec4899','Service':'#06b6d4','Services':'#06b6d4',
+  'Transportation':'#6366f1','Rent and Utilities':'#f59e0b','Personal Care':'#ec4899',
+  'Home':'#84cc16','Bank Fees':'#78716c','Government':'#64748b','Income':'#14b8a6',
+  'Loan Payments':'#8b5cf6','Transfer In':'#6366f1','Transfer Out':'#6366f1','Other':'#6b7280'
 };
 const CATEGORY_ICONS = {
-  'Food and Drink':'🍽️','Travel':'✈️','Shops':'🛍️','Recreation':'🎉',
-  'Transfer':'↔️','Payment':'💳','Healthcare':'🏥','Service':'🔧','Other':'💸'
+  'Food and Drink':'🍽️','Travel':'✈️','Shops':'🛍️','Shopping':'🛍️','Recreation':'🎉',
+  'Transfer':'↔️','Payment':'💳','Healthcare':'🏥','Service':'🔧','Services':'🔧',
+  'Transportation':'🚗','Rent and Utilities':'🏠','Personal Care':'💆','Home':'🔨',
+  'Bank Fees':'🏦','Government':'🏛️','Income':'💰','Loan Payments':'📋',
+  'Transfer In':'↩️','Transfer Out':'↪️','Other':'💸'
 };
+const PFC_LABELS = {
+  FOOD_AND_DRINK:'Food and Drink', GENERAL_MERCHANDISE:'Shopping', TRANSPORTATION:'Transportation',
+  TRAVEL:'Travel', ENTERTAINMENT:'Recreation', PERSONAL_CARE:'Personal Care',
+  RENT_AND_UTILITIES:'Rent and Utilities', MEDICAL:'Healthcare', GENERAL_SERVICES:'Services',
+  HOME_IMPROVEMENT:'Home', GOVERNMENT_AND_NON_PROFIT:'Government', BANK_FEES:'Bank Fees',
+  LOAN_PAYMENTS:'Loan Payments', TRANSFER_IN:'Transfer In', TRANSFER_OUT:'Transfer Out', INCOME:'Income'
+};
+const SPENDING_EXCLUDED_PFC = new Set(['TRANSFER_IN', 'TRANSFER_OUT', 'INCOME', 'LOAN_PAYMENTS']);
+
+function getTxCategory(tx) {
+  const primary = tx.personal_finance_category?.primary;
+  if (primary) {
+    return PFC_LABELS[primary] || primary.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+  }
+  if (tx.category?.length) return tx.category[0];
+  return 'Other';
+}
+
+function isExcludedFromSpending(tx) {
+  const primary = tx.personal_finance_category?.primary;
+  if (primary && SPENDING_EXCLUDED_PFC.has(primary)) return true;
+  const cat = getTxCategory(tx);
+  return cat === 'Transfer' || cat === 'Payment' || cat === 'Transfer In' || cat === 'Transfer Out';
+}
+
+function getCategoryColor(name) { return CATEGORY_COLORS[name] || '#6b7280'; }
+function getCategoryIcon(name) { return CATEGORY_ICONS[name] || '💸'; }
 const BILL_ICONS = {
   Housing:'🏠',Utilities:'⚡',Streaming:'📺',Insurance:'🛡️',
   Subscriptions:'🔄',Loans:'🏦',Other:'📋'
@@ -737,14 +770,14 @@ function filterTransactions() {
   const isZelle = tx => tx.name?.toLowerCase().includes('zelle') || tx.name?.toLowerCase().includes('venmo') || tx.name?.toLowerCase().includes('cash app');
   const filtered = [...allTransactions]
     .sort((a,b) => new Date(b.date) - new Date(a.date))
-    .filter(tx => !query || tx.name?.toLowerCase().includes(query) || tx.category?.[0]?.toLowerCase().includes(query));
+    .filter(tx => !query || tx.name?.toLowerCase().includes(query) || getTxCategory(tx).toLowerCase().includes(query));
   if (!filtered.length) { list.innerHTML = '<div class="empty-state">No transactions match your search</div>'; return; }
   list.innerHTML = '<div class="card">' + filtered.map(tx => {
     const incoming = tx.amount < 0;
     const zelle = isZelle(tx) && incoming;
-    const cat = tx.category?.[0] || 'Other';
-    const color = CATEGORY_COLORS[cat] || '#6b7280';
-    const icon = CATEGORY_ICONS[cat] || '💸';
+    const cat = getTxCategory(tx);
+    const color = getCategoryColor(cat);
+    const icon = getCategoryIcon(cat);
     return `<div class="card-row">
       <div class="tx-icon" style="background:${color}22">${icon}</div>
       <div class="account-info">
@@ -763,9 +796,9 @@ function renderRecent() {
   const sorted = [...allTransactions].sort((a,b) => new Date(b.date) - new Date(a.date)).slice(0,5);
   list.innerHTML = '<div class="card">' + sorted.map(tx => {
     const incoming = tx.amount < 0;
-    const cat = tx.category?.[0] || 'Other';
-    const color = CATEGORY_COLORS[cat] || '#6b7280';
-    const icon = CATEGORY_ICONS[cat] || '💸';
+    const cat = getTxCategory(tx);
+    const color = getCategoryColor(cat);
+    const icon = getCategoryIcon(cat);
     return `<div class="card-row">
       <div class="tx-icon" style="background:${color}22">${icon}</div>
       <div class="account-info"><div class="account-name">${tx.name}</div><div class="account-sub">${cat} · ${tx.date}</div></div>
@@ -778,8 +811,7 @@ function getSpendingExpenses(period) {
   const now = new Date();
   return allTransactions.filter(tx => {
     if (tx.amount <= 0) return false;
-    const cat = tx.category?.[0] || 'Other';
-    if (cat === 'Transfer' || cat === 'Payment') return false;
+    if (isExcludedFromSpending(tx)) return false;
     const d = new Date(tx.date);
     if (period === 'month') return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
     if (period === '3m') return d >= new Date(now - 90 * 86400000);
@@ -792,16 +824,25 @@ function getSpendingExpenses(period) {
 function getSpendingCategories(period) {
   const cats = {};
   getSpendingExpenses(period).forEach(tx => {
-    const cat = tx.category?.[0] || 'Other';
+    const cat = getTxCategory(tx);
     cats[cat] = (cats[cat] || 0) + tx.amount;
   });
   return Object.entries(cats)
     .map(([name, amount]) => ({
       name, amount,
-      color: CATEGORY_COLORS[name] || '#6b7280',
-      icon: CATEGORY_ICONS[name] || '💸'
+      color: getCategoryColor(name),
+      icon: getCategoryIcon(name)
     }))
     .sort((a, b) => b.amount - a.amount);
+}
+
+function getDonutSlices(categories) {
+  const maxSlices = 7;
+  if (categories.length <= maxSlices) return categories;
+  const top = categories.slice(0, maxSlices);
+  const restAmount = categories.slice(maxSlices).reduce((s, c) => s + c.amount, 0);
+  if (restAmount > 0) top.push({ name: 'Other', amount: restAmount, color: '#6b7280', icon: '💸' });
+  return top;
 }
 
 function setSpendingPeriod(period, btn) {
@@ -851,7 +892,7 @@ function renderSpendingTab() {
     </div>`;
   }).join('') + '</div>';
 
-  drawSpendingDonut(categories, total);
+  drawSpendingDonut(getDonutSlices(categories), total);
 }
 
 function drawSpendingDonut(categories, total) {
@@ -900,7 +941,7 @@ function saveSnapshots() {
   const expenses = allTransactions.filter(tx => { const d = new Date(tx.date); return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear()&&tx.amount>0; }).reduce((s,tx)=>s+tx.amount,0);
   const income = allTransactions.filter(tx => { const d = new Date(tx.date); return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear()&&tx.amount<0; }).reduce((s,tx)=>s+Math.abs(tx.amount),0);
   const cats = {};
-  allTransactions.filter(tx => { const d = new Date(tx.date); return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear()&&tx.amount>0; }).forEach(tx => { const cat=tx.category?.[0]||'Other'; cats[cat]=(cats[cat]||0)+tx.amount; });
+  allTransactions.filter(tx => { const d = new Date(tx.date); return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear()&&tx.amount>0; }).forEach(tx => { const cat=getTxCategory(tx); cats[cat]=(cats[cat]||0)+tx.amount; });
   fetch(`${API}/api/spending-history`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({month:now.getMonth(),year:now.getFullYear(),income:Math.round(income),expenses:Math.round(expenses),categories:cats}) }).catch(()=>{});
 }
 
@@ -1024,7 +1065,7 @@ function renderBudgets() {
   if (!list) return;
   const now=new Date();
   const spending={};
-  allTransactions.filter(tx=>{const d=new Date(tx.date);return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear()&&tx.amount>0;}).forEach(tx=>{const cat=tx.category?.[0]||'Other';spending[cat]=(spending[cat]||0)+tx.amount;});
+  allTransactions.filter(tx=>{const d=new Date(tx.date);return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear()&&tx.amount>0;}).forEach(tx=>{const cat=getTxCategory(tx);spending[cat]=(spending[cat]||0)+tx.amount;});
   const allCats=[...new Set([...Object.keys(budgets),...Object.keys(spending)])];
   if (!allCats.length) { list.innerHTML='<div class="empty-state"><div class="empty-icon">🎯</div>No budgets set yet</div>'; return; }
   list.innerHTML=allCats.map(cat=>{
@@ -1033,7 +1074,7 @@ function renderBudgets() {
     const pct=budget>0?Math.min(100,Math.round((spent/budget)*100)):0;
     const color=pct>=90?'#f43f5e':pct>=70?'#f59e0b':'#a855f7';
     const icon=CATEGORY_ICONS[cat]||'💸';
-    const catColor=CATEGORY_COLORS[cat]||'#6b7280';
+    const catColor=getCategoryColor(cat);
     return `<div class="card" style="margin-bottom:10px;padding:16px"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><div style="display:flex;align-items:center;gap:10px"><div class="tx-icon" style="background:${catColor}22;width:36px;height:36px;font-size:16px">${icon}</div><div><div style="font-size:14px;font-weight:600;color:#fff">${cat}</div><div style="font-size:12px;color:#9ca3af">$${Math.round(spent).toLocaleString()} of $${Math.round(budget).toLocaleString()}</div></div></div><div style="font-size:14px;font-weight:700;color:${color}">${pct}%</div></div><div class="progress-bar-bg"><div class="progress-bar" style="width:${pct}%;background:${color}"></div></div>${pct>=90?'<div style="font-size:12px;color:#f43f5e;margin-top:6px">⚠️ Almost at limit!</div>':''}${budget===0?'<div style="font-size:12px;color:#9ca3af;margin-top:6px">No budget set</div>':''}</div>`;
   }).join('');
 }
