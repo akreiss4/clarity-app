@@ -602,7 +602,19 @@ async function loadTransactions() {
     renderRecent();
     renderSpendingTab();
     saveSnapshots();
+    maybeRefreshTransactionHistory();
   } catch { allTransactions = []; }
+}
+
+function maybeRefreshTransactionHistory() {
+  if (!allTransactions.length || sessionStorage.getItem('clarity-tx-refresh')) return;
+  const oldest = allTransactions.reduce((min, tx) => tx.date < min ? tx.date : min, allTransactions[0].date);
+  const daysSpan = (Date.now() - new Date(oldest)) / 86400000;
+  if (daysSpan >= 330) return;
+  sessionStorage.setItem('clarity-tx-refresh', '1');
+  fetch(`${API}/api/refresh-transactions`, { method: 'POST' }).then(() => {
+    setTimeout(loadTransactions, 30000);
+  }).catch(() => {});
 }
 
 function updateHomeNetWorth() {

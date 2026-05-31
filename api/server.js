@@ -38,6 +38,36 @@ async function saveTokens(tokens) {
   await redis.set('clarity:access_tokens', tokens);
 }
 
+async function fetchAllTransactions(token) {
+  const now = new Date();
+  const start = new Date();
+  start.setDate(now.getDate() - 365);
+  const start_date = start.toISOString().split('T')[0];
+  const end_date = now.toISOString().split('T')[0];
+
+  let offset = 0;
+  const count = 500;
+  let total = null;
+  const transactions = [];
+  let accounts = [];
+
+  while (total === null || offset < total) {
+    const response = await plaidClient.transactionsGet({
+      access_token: token,
+      start_date,
+      end_date,
+      options: { count, offset },
+    });
+    transactions.push(...response.data.transactions);
+    accounts = response.data.accounts;
+    total = response.data.total_transactions;
+    offset += response.data.transactions.length;
+    if (!response.data.transactions.length) break;
+  }
+
+  return { transactions, accounts };
+}
+
 app.post('/api/create-link-token', async (req, res) => {
   try {
     const response = await plaidClient.linkTokenCreate({
@@ -46,6 +76,7 @@ app.post('/api/create-link-token', async (req, res) => {
       products: ['transactions'],
       country_codes: ['US'],
       language: 'en',
+      transactions: { days_requested: 730 },
     });
     res.json(response.data);
   } catch (err) {
@@ -61,6 +92,9 @@ app.post('/api/exchange-token', async (req, res) => {
     const tokens = await getTokens();
     tokens.push(response.data.access_token);
     await saveTokens(tokens);
+    plaidClient.transactionsRefresh({ access_token: response.data.access_token }).catch(err => {
+      console.error('transactionsRefresh:', err.response?.data || err.message);
+    });
     res.json({ success: true });
   } catch (err) {
     console.error(err.response?.data || err.message);
@@ -72,23 +106,35 @@ app.get('/api/transactions', async (req, res) => {
   try {
     const tokens = await getTokens();
     const allTransactions = [];
+    const seenAccounts = new Set();
     const allAccounts = [];
     for (const token of tokens) {
-      const now = new Date();
-      const start = new Date();
-      start.setDate(now.getDate() - 365);
-      const response = await plaidClient.transactionsGet({
-        access_token: token,
-        start_date: start.toISOString().split('T')[0],
-        end_date: now.toISOString().split('T')[0],
-      });
-      allTransactions.push(...response.data.transactions);
-      allAccounts.push(...response.data.accounts);
+      const { transactions, accounts } = await fetchAllTransactions(token);
+      allTransactions.push(...transactions);
+      for (const account of accounts) {
+        if (!seenAccounts.has(account.account_id)) {
+          seenAccounts.add(account.account_id);
+          allAccounts.push(account);
+        }
+      }
     }
     res.json({ transactions: allTransactions, accounts: allAccounts });
   } catch (err) {
     console.error(err.response?.data || err.message);
     res.status(500).json({ error: 'Failed to fetch transactions' });
+  }
+});
+
+app.post('/api/refresh-transactions', async (req, res) => {
+  try {
+    const tokens = await getTokens();
+    for (const token of tokens) {
+      await plaidClient.transactionsRefresh({ access_token: token });
+    }
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err.response?.data || err.message);
+    res.status(500).json({ error: 'Failed to refresh transactions' });
   }
 });
 
